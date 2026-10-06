@@ -41,3 +41,9 @@ jobs:
           git add downloads/ menu.json
           # Salva le modifiche ed esegue il push solo se ci sono effettivamente nuovi file o modifiche a menu.json
           git diff-index --quiet HEAD || (git commit -m "💾 Aggiornati allegati e menu.json" && git push)
+
+      - name: Invia notifica Telegram
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python notify_telegram.py
