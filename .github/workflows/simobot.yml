@@ -1,0 +1,43 @@
+name: simobot
+
+on:
+  schedule:
+    # Esegue lo script ogni lunedì alle 07:00 UTC (08:00 o 09:00 italiane a seconda dell'ora solare/legale)
+    - cron: '0 7 * * 6'
+  workflow_dispatch: # Permette l'esecuzione manuale con un click da GitHub Actions
+
+# Permesso esplicito necessario per consentire a GitHub Actions di salvare i file nel repository
+permissions:
+  contents: write
+
+jobs:
+  process-menu:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configura Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Installa dipendenze
+        run: pip install -r requirements.txt
+
+      - name: Scarica l'allegato del menù (Fase 1)
+        env:
+          EMAIL_USER: ${{ secrets.EMAIL_USER }}
+          EMAIL_PASS: ${{ secrets.EMAIL_PASS }}
+        run: python download_menu.py
+
+      - name: Estrai testo e crea menu.json (Fase 2)
+        run: python parse_menu.py
+
+      - name: Commit e Push su GitHub
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add downloads/ menu.json
+          # Salva le modifiche ed esegue il push solo se ci sono effettivamente nuovi file o modifiche a menu.json
+          git diff-index --quiet HEAD || (git commit -m "💾 Aggiornati allegati e menu.json" && git push)
