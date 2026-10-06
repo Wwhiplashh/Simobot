@@ -34,6 +34,12 @@ jobs:
       - name: Estrai testo e crea menu.json (Fase 2)
         run: python parse_menu.py
 
+      - name: Invia notifica Telegram
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python notify_telegram.py
+      
       - name: Commit e Push su GitHub
         run: |
           git config --global user.name "github-actions[bot]"
@@ -41,9 +47,3 @@ jobs:
           git add downloads/ menu.json
           # Salva le modifiche ed esegue il push solo se ci sono effettivamente nuovi file o modifiche a menu.json
           git diff-index --quiet HEAD || (git commit -m "💾 Aggiornati allegati e menu.json" && git push)
-
-      - name: Invia notifica Telegram
-        env:
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: python notify_telegram.py
