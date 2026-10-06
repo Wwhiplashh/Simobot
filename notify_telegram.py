@@ -1,20 +1,19 @@
-from datetime import datetime
 import json
 import os
 import sys
-import urllib.parse
 import urllib.request
 
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
-GIORNI_MAP = {
-    0: "lunedì",
-    1: "martedì",
-    2: "mercoledì",
-    3: "giovedì",
-    4: "venerdì",
-}
+# Ordine di visualizzazione dei giorni
+GIORNI_ORDINE = [
+    "lunedì",
+    "martedì",
+    "mercoledì",
+    "giovedì",
+    "venerdì",
+]
 
 
 def send_message(text: str):
@@ -44,7 +43,10 @@ def send_message(text: str):
     try:
         with urllib.request.urlopen(req) as response:
             if response.status == 200:
-                print("✅ Messaggio inviato con successo sul canale Telegram!")
+                print(
+                    "✅ Menù settimanale inviato con successo sul canale"
+                    " Telegram!"
+                )
             else:
                 print(
                     "❌ Errore durante l'invio su Telegram: codice"
@@ -64,23 +66,47 @@ def main():
     with open("menu.json", "r", encoding="utf-8") as f:
         menu_data = json.load(f)
 
-    today_index = datetime.now().weekday()
-    today_name = GIORNI_MAP.get(today_index, "lunedì")
+    giorni_dict = menu_data.get("giorni", {})
 
-    giorni = menu_data.get("giorni", {})
-
-    if today_name not in giorni or not giorni[today_name]:
-        print(f"ℹ️ Nessun menù trovato per {today_name}.")
+    if not giorni_dict:
+        print("⚠️ Nessun dato trovato in menu.json.")
         return
 
-    piatti = giorni[today_name]
-    menu_testo = "\n".join([f"• {p}" for p in piatti])
+    # Intestazione del messaggio
+    titolo = menu_data.get("titolo_documento", "MENÙ SCOLASTICO SETTIMANALE")
+    messaggio_blocks = [f"📋 *{titolo.upper()}*\n"]
 
-    messaggio = (
-        f"🍽️ *MENÙ DELLA MENSA - {today_name.upper()}*\n\n{menu_testo}"
-    )
+    # Ordiniamo i giorni secondo la settimana lavorativa
+    chiavi_giorni = list(giorni_dict.keys())
 
-    send_message(messaggio)
+    def sort_key(day_name):
+        day_lower = day_name.lower()
+        if day_lower in GIORNI_ORDINE:
+            return GIORNI_ORDINE.index(day_lower)
+        return 99
+
+    chiavi_ordinate = sorted(chiavi_giorni, key=sort_key)
+
+    giorni_trovati = False
+    for giorno in chiavi_ordinate:
+        piatti = giorni_dict[giorno]
+        if not piatti or giorno == "generale":
+            continue
+
+        giorni_trovati = True
+        piatti_formatted = "\n".join([f"• {p}" for p in piatti])
+        messaggio_blocks.append(
+            f"📌 *{giorno.upper()}*\n{piatti_formatted}\n"
+        )
+
+    # Fallback se non ci sono giorni formattati distinti
+    if not giorni_trovati and "generale" in giorni_dict:
+        piatti_formatted = "\n".join([f"• {p}" for p in giorni_dict["generale"]])
+        messaggio_blocks.append(piatti_formatted)
+
+    messaggio_finale = "\n".join(messaggio_blocks)
+
+    send_message(messaggio_finale)
 
 
 if __name__ == "__main__":
