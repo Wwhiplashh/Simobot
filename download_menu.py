@@ -44,7 +44,8 @@ def fetch_latest_menu_attachments():
 
         # Cerca le email contenenti la parola chiave nell'oggetto
         print(f"🔍 Ricerca email con oggetto contenente '{SEARCH_KEYWORD}'...")
-        status, response = mail.search(None, f'(SUBJECT "{SEARCH_KEYWORD}")')
+        search_criteria = f'SUBJECT "{SEARCH_KEYWORD}"'.encode('utf-8')
+        status, response = mail.search('UTF-8', search_criteria)
 
         if status != "OK":
             print("❌ Errore durante la ricerca nella casella di posta.")
