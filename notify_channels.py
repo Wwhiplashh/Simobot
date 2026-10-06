@@ -106,7 +106,33 @@ def send_telegram_post(text: str, photo_path: Path | None = None):
     else:
         print(f"❌ Errore durante l'invio su Telegram: {response.text}")
         sys.exit(1)
+def send_whatsapp_post(text: str, photo_path: Path | None = None):
+    if not WHATSAPP_API_TOKEN or not WHATSAPP_CHANNEL_ID:
+        print("ℹ️ Secrets WhatsApp non configurati. Salto l'invio su WhatsApp.")
+        return
 
+    headers = {"Authorization": f"Bearer {WHATSAPP_API_TOKEN}"}
+
+    try:
+        if photo_path and photo_path.exists():
+            url = "https://gate.whapi.cloud/messages/image"
+            with open(photo_path, "rb") as f:
+                files = {"media": f}
+                data = {"to": WHATSAPP_CHANNEL_ID, "caption": text}
+                res = requests.post(
+                    url, headers=headers, data=data, files=files
+                )
+        else:
+            url = "https://gate.whapi.cloud/messages/text"
+            payload = {"to": WHATSAPP_CHANNEL_ID, "body": text}
+            res = requests.post(url, headers=headers, json=payload)
+
+        if res.status_code in [200, 201]:
+            print("✅ Post inviato con successo sul canale WhatsApp!")
+        else:
+            print(f"❌ Errore durante l'invio su WhatsApp: {res.text}")
+    except Exception as e:
+        print(f"❌ Errore HTTP durante l'invio su WhatsApp: {e}")
 
 def is_header_line(line: str) -> bool:
     line_lower = line.lower().strip()
