@@ -49,7 +49,7 @@ def main():
     giorni = menu_data.get("giorni", {})
 
     # Se è sabato o domenica, o il giorno non è presente nel JSON
-    if today_name notin giorni or not giorni[today_name]:
+    if today_name not in giorni or not giorni[today_name]:
         print(f"ℹ️ Nessun menù specifico trovato per {today_name}.")
         return
 
