@@ -1,10 +1,12 @@
 import json
 import os
+from pathlib import Path
 import sys
-import urllib.request
+import requests
 
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
+DOWNLOADS_DIR = Path("./downloads")
 
 GIORNI_KEYWORDS = [
     "lunedì",
@@ -14,7 +16,6 @@ GIORNI_KEYWORDS = [
     "venerdì",
 ]
 
-# Parole chiave delle righe di intestazione da filtrare ed ignorare
 HEADER_EXCLUDE_KEYWORDS = [
     "scuole dell'infanzia",
     "scuole primarie",
@@ -29,7 +30,35 @@ HEADER_EXCLUDE_KEYWORDS = [
 ]
 
 
-def send_message(text: str):
+def find_menu_photo() -> Path | None:
+    """Cerca nella cartella downloads la foto reale del menù,
+
+    ignorando immagini di firma/logo (es. image001.png) o file piccoli.
+    """
+    if not DOWNLOADS_DIR.exists():
+        return None
+
+    image_extensions = [".jpg", ".jpeg", ".png"]
+
+    for file_path in DOWNLOADS_DIR.iterdir():
+        if file_path.suffix.lower() in image_extensions:
+            filename_lower = file_path.name.lower()
+
+            # 1. Esclude immagini di firma o logo (es. image001.png)
+            if filename_lower.startswith("image0") or "logo" in filename_lower:
+                continue
+
+            # 2. Esclude file troppo piccoli (meno di 30 KB)
+            if file_path.stat().st_size < 30000:
+                continue
+
+            print(f"📸 Trovata foto del menù da allegare: {file_path.name}")
+            return file_path
+
+    return None
+
+
+def send_telegram_post(text: str, photo_path: Path | None = None):
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
         print(
             "❌ Errore: TELEGRAM_BOT_TOKEN o TELEGRAM_CHAT_ID non"
@@ -37,48 +66,54 @@ def send_message(text: str):
         )
         sys.exit(1)
 
-    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-    payload = json.dumps(
-        {
-            "chat_id": TELEGRAM_CHAT_ID,
-            "text": text,
-            "parse_mode": "Markdown",
-        }
-    ).encode("utf-8")
+    # 1. Se è presente una foto valida, invia sendPhoto con didascalia
+    if photo_path and photo_path.exists():
+        url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendPhoto"
+        try:
+            with open(photo_path, "rb") as photo_file:
+                payload = {
+                    "chat_id": TELEGRAM_CHAT_ID,
+                    "caption": text,
+                    "parse_mode": "Markdown",
+                }
+                files = {"photo": photo_file}
+                response = requests.post(url, data=payload, files=files)
 
-    req = urllib.request.Request(
-        url,
-        data=payload,
-        headers={"Content-Type": "application/json"},
-        method="POST",
-    )
-
-    try:
-        with urllib.request.urlopen(req) as response:
-            if response.status == 200:
-                print(
-                    "✅ Menù settimanale inviato con successo sul canale"
-                    " Telegram!"
-                )
+            if response.status_code == 200:
+                print("✅ Foto e menù inviati con successo su Telegram!")
+                return
             else:
                 print(
-                    "❌ Errore durante l'invio su Telegram: codice"
-                    f" {response.status}"
+                    "⚠️ Impossibile inviare la foto (fallback a solo testo):"
+                    f" {response.text}"
                 )
-                sys.exit(1)
-    except Exception as e:
-        print(f"❌ Errore HTTP durante la chiamata a Telegram: {e}")
+        except Exception as e:
+            print(
+                f"⚠️ Errore durante l'invio della foto: {e}. Invo di solo"
+                " testo."
+            )
+
+    # 2. Fallback: invio solo testo
+    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+    payload = {
+        "chat_id": TELEGRAM_CHAT_ID,
+        "text": text,
+        "parse_mode": "Markdown",
+    }
+    response = requests.post(url, json=payload)
+    if response.status_code == 200:
+        print("✅ Messaggio di testo inviato con successo su Telegram!")
+    else:
+        print(f"❌ Errore durante l'invio su Telegram: {response.text}")
         sys.exit(1)
 
 
 def is_header_line(line: str) -> bool:
-    """Verifica se la riga fa parte dell'intestazione da ignorare."""
     line_lower = line.lower().strip()
     return any(kw in line_lower for kw in HEADER_EXCLUDE_KEYWORDS)
 
 
 def is_day_line(line: str) -> bool:
-    """Verifica se la riga inizia con un giorno della settimana."""
     line_lower = line.lower().strip()
     return any(line_lower.startswith(giorno) for giorno in GIORNI_KEYWORDS)
 
@@ -91,7 +126,6 @@ def main():
     with open("menu.json", "r", encoding="utf-8") as f:
         menu_data = json.load(f)
 
-    # Estrae il testo grezzo estratto dal PDF
     lines = []
     if "testo_integrale" in menu_data:
         lines = [
@@ -105,24 +139,25 @@ def main():
                 lines.append(g)
             lines.extend(items)
 
-    output_lines = ["🍽️️ *MENU MENSE SCOLASTICHE*\n"]
+    output_lines = ["🍽 *MENU MENSE SCOLASTICHE*\n"]
 
     for line in lines:
-        # 1. Ignora le intestazioni indesiderate
         if is_header_line(line):
             continue
 
-        # 2. Se è una riga con il giorno (es. "Lunedì 5 Ottobre")
         if is_day_line(line):
             day_title = line.strip().capitalize()
             output_lines.append(f"\n📌 *{day_title}*")
         else:
-            # 3. Aggiunge i piatti/spuntini senza elenchi puntati
             output_lines.append(line.strip())
 
     messaggio_finale = "\n".join(output_lines).strip()
 
-    send_message(messaggio_finale)
+    # Cerca la foto del menù (es. PolloSpinaci.jpeg) ignorando le immagini di firma
+    photo_path = find_menu_photo()
+
+    # Invia il post su Telegram
+    send_telegram_post(messaggio_finale, photo_path)
 
 
 if __name__ == "__main__":
