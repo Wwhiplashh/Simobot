@@ -34,11 +34,13 @@ jobs:
       - name: Estrai testo e crea menu.json (Fase 2)
         run: python parse_menu.py
 
-      - name: Invia notifica Telegram
+      - name: Invia notifica Telegram e WhatsApp
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: python notify_telegram.py
+          WHATSAPP_API_TOKEN: ${{ secrets.WHATSAPP_API_TOKEN }}
+          WHATSAPP_CHANNEL_ID: ${{ secrets.WHATSAPP_CHANNEL_ID }}
+        run: python notify_channels.py
       
       - name: Commit e Push su GitHub
         run: |
