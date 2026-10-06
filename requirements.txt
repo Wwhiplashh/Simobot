@@ -1,3 +1,4 @@
 # Dipendenze per l'estrazione e il parsing (Fase 2)
 pdfplumber
 pypdf
+requests
