@@ -1,0 +1,27 @@
+name: Email Checker
+on:
+  schedule:
+    # Esegue lo script ogni Sabato alle 07:00 UTC (08:00 / 09:00 italiane)
+    - cron: '0 7 * * 6'
+  workflow_dispatch: # Permette anche l'esecuzione manuale da GitHub con un click
+
+jobs:
+  check-email:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configura Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Installa dipendenze
+        run: pip install -r requirements.txt
+
+      - name: Esegui lo script di estrazione
+        env:
+          EMAIL_USER: ${{ secrets.EMAIL_USER }}
+          EMAIL_PASS: ${{ secrets.EMAIL_PASS }}
+        run: python process_menu.py
