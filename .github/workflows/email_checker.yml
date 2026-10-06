@@ -26,7 +26,6 @@ jobs:
           EMAIL_USER: ${{ secrets.EMAIL_USER }}
           EMAIL_PASS: ${{ secrets.EMAIL_PASS }}
         run: python download_menu.py
-      
 
       # --- NUOVO PASSAGGIO: Salva i file scaricati nel repository ---
       - name: Commit e Push dei file scaricati
@@ -36,6 +35,3 @@ jobs:
           git add downloads/
           # Esegue il commit solo se ci sono effettivamente nuovi file scaricati
           git diff-index --quiet HEAD || (git commit -m "💾 Aggiunto nuovo allegato menù" && git push)
-
-      - name: Esegui lo script estrazione menu
-      run: python parse_menu.py
