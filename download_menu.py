@@ -42,42 +42,48 @@ def fetch_latest_menu_attachments():
         mail.login(EMAIL_USER, EMAIL_PASS)
         mail.select("inbox")
 
-        # Ricerca Gmail convertendo esplicitamente la stringa in byte UTF-8
-        print(f"🔍 Ricerca email con oggetto contenente '{SEARCH_KEYWORD}'...")
-        query = f'X-GM-RAW "subject:{SEARCH_KEYWORD}"'.encode('utf-8')
-        status, response = mail.search('UTF-8', query)
-
-        if status != "OK":
-            print("❌ Errore durante la ricerca nella casella di posta.")
+        # Recupera tutti gli ID delle email nella casella
+        status, response = mail.search(None, "ALL")
+        if status != "OK" or not response[0]:
+            print("⚠️️ Nessuna email trovata nella casella di posta.")
             return []
 
         email_ids = response[0].split()
-        if not email_ids:
-            print("⚠️ Nessuna email trovata con i criteri specificati.")
+        # Esamina solo le ultime 20 email (dalla più recente alla meno recente)
+        recent_ids = email_ids[-20:]
+        recent_ids.reverse()
+
+        latest_email_id = None
+
+        print("🔍 Ricerca dell'email del menù tra le ultime ricevute...")
+        for email_id in recent_ids:
+            # Scarica solo l'intestazione dell'email per velocizzare l'operazione
+            status, header_data = mail.fetch(email_id, "(BODY.PEEK[HEADER.FIELDS (SUBJECT)])")
+            if status == "OK" and header_data[0]:
+                msg = email.message_from_bytes(header_data[0][1])
+                subject = decode_mime_text(msg.get("Subject")).lower()
+
+                # Verifica con Python: accetta sia "menu" che "menù" (e maiuscole/minuscole)
+                if "menu" in subject or "menù" in subject:
+                    latest_email_id = email_id
+                    print(f"✅ Email trovata! Oggetto: '{msg.get('Subject')}'")
+                    break
+
+        if not latest_email_id:
+            print("⚠️ Nessuna email trovata contenente 'menu' o 'menù' nell'oggetto.")
+            mail.close()
+            mail.logout()
             return []
 
-        # Prende l'ultima email ricevuta in ordine cronologico (ID più alto)
-        latest_email_id = email_ids[-1]
-        print(f"📧 Trovate {len(email_ids)} email. Elaborazione della più recente...")
-
+        # Scarica l'intero contenuto della mail trovata
         status, data = mail.fetch(latest_email_id, "(RFC822)")
-        if status != "OK":
-            print("❌ Errore nel recupero del contenuto della mail.")
-            return []
-
         msg = email.message_from_bytes(data[0][1])
-        subject = decode_mime_text(msg.get("Subject"))
-        sender = decode_mime_text(msg.get("From"))
-        print(f"📩 Oggetto: '{subject}' | Da: {sender}")
 
         downloaded_files = []
 
-        # Scansiona le componenti MIME della mail per estrarre gli allegati
+        # Estrazione allegati (PDF / Immagini)
         for part in msg.walk():
-            # Salta contenitori generici o messaggi senza disposition
-            if part.get_content_maintype() == "multipart":
-                continue
-            if part.get("Content-Disposition") is None:
+            if part.get_content_maintype() == "multipart" or part.get("Content-Disposition") is None:
                 continue
 
             filename = part.get_filename()
@@ -85,19 +91,13 @@ def fetch_latest_menu_attachments():
                 filename = decode_mime_text(filename)
                 ext = Path(filename).suffix.lower()
 
-                # Filtra solo PDF e formati immagine
                 if ext in [".pdf", ".jpg", ".jpeg", ".png"]:
                     filepath = DOWNLOAD_DIR / filename
-                    
-                    # Salva il file in binario
                     with open(filepath, "wb") as f:
                         f.write(part.get_payload(decode=True))
                     
                     print(f"💾 Allegato scaricato: {filepath}")
                     downloaded_files.append(filepath)
-
-        if not downloaded_files:
-            print("⚠️ Nessun allegato PDF o immagine trovato nell'email selezionata.")
 
         mail.close()
         mail.logout()
