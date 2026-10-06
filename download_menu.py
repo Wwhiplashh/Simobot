@@ -42,10 +42,9 @@ def fetch_latest_menu_attachments():
         mail.login(EMAIL_USER, EMAIL_PASS)
         mail.select("inbox")
 
-        # Cerca le email contenenti la parola chiave nell'oggetto
+        # Ricerca IMAP standard con codifica UTF-8
         print(f"🔍 Ricerca email con oggetto contenente '{SEARCH_KEYWORD}'...")
-        search_criteria = f'SUBJECT "{SEARCH_KEYWORD}"'.encode('utf-8')
-        status, response = mail.search('UTF-8', search_criteria)
+        status, response = mail.search('UTF-8', 'SUBJECT', SEARCH_KEYWORD.encode('utf-8'))
 
         if status != "OK":
             print("❌ Errore durante la ricerca nella casella di posta.")
