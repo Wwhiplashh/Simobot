@@ -4,8 +4,14 @@ from pathlib import Path
 import sys
 import requests
 
+# Variable d'ambiente Telegram
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
+
+# Variabili d'ambiente WhatsApp
+WHATSAPP_API_TOKEN = os.getenv("WHATSAPP_API_TOKEN")
+WHATSAPP_CHANNEL_ID = os.getenv("WHATSAPP_CHANNEL_ID")
+
 DOWNLOADS_DIR = Path("./downloads")
 
 GIORNI_KEYWORDS = [
@@ -44,15 +50,16 @@ def find_menu_photo() -> Path | None:
         if file_path.suffix.lower() in image_extensions:
             filename_lower = file_path.name.lower()
 
-            # 1. Esclude immagini di firma o logo (es. image001.png)
             if filename_lower.startswith("image0") or "logo" in filename_lower:
                 continue
 
-            # 2. Esclude file troppo piccoli (meno di 30 KB)
             if file_path.stat().st_size < 30000:
                 continue
 
-            print(f"📸 Trovata foto del menù da allegare: {file_path.name}")
+            print(
+                f"📸 Trovata foto del menù da allegare: {file_path.name}",
+                flush=True,
+            )
             return file_path
 
     return None
@@ -62,11 +69,11 @@ def send_telegram_post(text: str, photo_path: Path | None = None):
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
         print(
             "❌ Errore: TELEGRAM_BOT_TOKEN o TELEGRAM_CHAT_ID non"
-            " configurati nei Secrets."
+            " configurati nei Secrets.",
+            flush=True,
         )
-        sys.exit(1)
+        return
 
-    # 1. Se è presente una foto valida, invia sendPhoto con didascalia
     if photo_path and photo_path.exists():
         url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendPhoto"
         try:
@@ -80,20 +87,23 @@ def send_telegram_post(text: str, photo_path: Path | None = None):
                 response = requests.post(url, data=payload, files=files)
 
             if response.status_code == 200:
-                print("✅ Foto e menù inviati con successo su Telegram!")
+                print(
+                    "✅ Foto e menù inviati con successo su Telegram!",
+                    flush=True,
+                )
                 return
             else:
                 print(
-                    "⚠️ Impossibile inviare la foto (fallback a solo testo):"
-                    f" {response.text}"
+                    "⚠️ Impossibile inviare la foto su Telegram (fallback a solo"
+                    f" testo): {response.text}",
+                    flush=True,
                 )
         except Exception as e:
             print(
-                f"⚠️ Errore durante l'invio della foto: {e}. Invo di solo"
-                " testo."
+                f"⚠️ Errore invio foto Telegram: {e}. Tento invio solo testo.",
+                flush=True,
             )
 
-    # 2. Fallback: invio solo testo
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
     payload = {
         "chat_id": TELEGRAM_CHAT_ID,
@@ -102,13 +112,22 @@ def send_telegram_post(text: str, photo_path: Path | None = None):
     }
     response = requests.post(url, json=payload)
     if response.status_code == 200:
-        print("✅ Messaggio di testo inviato con successo su Telegram!")
+        print(
+            "✅ Messaggio di testo inviato con successo su Telegram!",
+            flush=True,
+        )
     else:
-        print(f"❌ Errore durante l'invio su Telegram: {response.text}")
-        sys.exit(1)
+        print(
+            f"❌ Errore durante l'invio su Telegram: {response.text}", flush=True
+        )
+
+
 def send_whatsapp_post(text: str, photo_path: Path | None = None):
     if not WHATSAPP_API_TOKEN or not WHATSAPP_CHANNEL_ID:
-        print("ℹ️ Secrets WhatsApp non configurati. Salto l'invio su WhatsApp.")
+        print(
+            "ℹ️ Secrets WhatsApp non configurati. Salto l'invio su WhatsApp.",
+            flush=True,
+        )
         return
 
     headers = {"Authorization": f"Bearer {WHATSAPP_API_TOKEN}"}
@@ -128,11 +147,17 @@ def send_whatsapp_post(text: str, photo_path: Path | None = None):
             res = requests.post(url, headers=headers, json=payload)
 
         if res.status_code in [200, 201]:
-            print("✅ Post inviato con successo sul canale WhatsApp!")
+            print(
+                "✅ Post inviato con successo sul canale/gruppo WhatsApp!",
+                flush=True,
+            )
         else:
-            print(f"❌ Errore durante l'invio su WhatsApp: {res.text}")
+            print(
+                f"❌ Errore durante l'invio su WhatsApp: {res.text}", flush=True
+            )
     except Exception as e:
-        print(f"❌ Errore HTTP durante l'invio su WhatsApp: {e}")
+        print(f"❌ Errore HTTP durante l'invio su WhatsApp: {e}", flush=True)
+
 
 def is_header_line(line: str) -> bool:
     line_lower = line.lower().strip()
@@ -146,7 +171,7 @@ def is_day_line(line: str) -> bool:
 
 def main():
     if not os.path.exists("menu.json"):
-        print("⚠️ File menu.json non trovato.")
+        print("⚠️ File menu.json non trovato.", flush=True)
         return
 
     with open("menu.json", "r", encoding="utf-8") as f:
@@ -179,11 +204,15 @@ def main():
 
     messaggio_finale = "\n".join(output_lines).strip()
 
-    # Cerca la foto del menù (es. PolloSpinaci.jpeg) ignorando le immagini di firma
     photo_path = find_menu_photo()
 
-    # Invia il post su Telegram
+    # Invio disaccoppiato su Telegram
+    print("\n--- Invio Telegram ---", flush=True)
     send_telegram_post(messaggio_finale, photo_path)
+
+    # Invio disaccoppiato su WhatsApp
+    print("\n--- Invio WhatsApp ---", flush=True)
+    send_whatsapp_post(messaggio_finale, photo_path)
 
 
 if __name__ == "__main__":
