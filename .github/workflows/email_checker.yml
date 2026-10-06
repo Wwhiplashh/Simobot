@@ -1,9 +1,9 @@
-name: Email Checker
+name: Check Menu Email
+
 on:
   schedule:
-    # Esegue lo script ogni Sabato alle 07:00 UTC (08:00 / 09:00 italiane)
     - cron: '0 7 * * 6'
-  workflow_dispatch: # Permette anche l'esecuzione manuale da GitHub con un click
+  workflow_dispatch:
 
 jobs:
   check-email:
@@ -17,11 +17,17 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Installa dipendenze
-        run: pip install -r requirements.txt
-
-      - name: Esegui lo script di estrazione
+      - name: Esegui lo script di scaricamento
         env:
           EMAIL_USER: ${{ secrets.EMAIL_USER }}
           EMAIL_PASS: ${{ secrets.EMAIL_PASS }}
         run: python download_menu.py
+
+      # --- NUOVO PASSAGGIO: Salva i file scaricati nel repository ---
+      - name: Commit e Push dei file scaricati
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add downloads/
+          # Esegue il commit solo se ci sono effettivamente nuovi file scaricati
+          git diff-index --quiet HEAD || (git commit -m "💾 Aggiunto nuovo allegato menù" && git push)
