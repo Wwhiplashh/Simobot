@@ -42,9 +42,10 @@ def fetch_latest_menu_attachments():
         mail.login(EMAIL_USER, EMAIL_PASS)
         mail.select("inbox")
 
-        # Ricerca nativa Gmail (supporta accenti e caratteri speciali)
+        # Ricerca Gmail convertendo esplicitamente la stringa in byte UTF-8
         print(f"🔍 Ricerca email con oggetto contenente '{SEARCH_KEYWORD}'...")
-        status, response = mail.search(None, f'X-GM-RAW "subject:{SEARCH_KEYWORD}"')
+        query = f'X-GM-RAW "subject:{SEARCH_KEYWORD}"'.encode('utf-8')
+        status, response = mail.search('UTF-8', query)
 
         if status != "OK":
             print("❌ Errore durante la ricerca nella casella di posta.")
