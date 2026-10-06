@@ -10,7 +10,7 @@ IMAP_SERVER = os.getenv("IMAP_SERVER", "imap.gmail.com")  # Default per Gmail
 EMAIL_USER = os.getenv("EMAIL_USER")
 EMAIL_PASS = os.getenv("EMAIL_PASS")
 DOWNLOAD_DIR = Path(os.getenv("DOWNLOAD_DIR", "./downloads"))
-SEARCH_KEYWORD = os.getenv("SEARCH_KEYWORD", "menu")  # Parola chiave nell'oggetto
+SEARCH_KEYWORD = os.getenv("SEARCH_KEYWORD", "menù")  # Parola chiave nell'oggetto
 
 
 def decode_mime_text(text: str) -> str:
