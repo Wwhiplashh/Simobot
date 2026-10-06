@@ -6,13 +6,26 @@ import urllib.request
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
-# Ordine di visualizzazione dei giorni
-GIORNI_ORDINE = [
+GIORNI_KEYWORDS = [
     "lunedì",
     "martedì",
     "mercoledì",
     "giovedì",
     "venerdì",
+]
+
+# Parole chiave delle righe di intestazione da filtrare ed ignorare
+HEADER_EXCLUDE_KEYWORDS = [
+    "scuole dell'infanzia",
+    "scuole primarie",
+    "menù primavera",
+    "menu primavera",
+    "menù autunno",
+    "menu autunno",
+    "menù inverno",
+    "menu inverno",
+    "a.s. 20",
+    "settimana:",
 ]
 
 
@@ -58,6 +71,18 @@ def send_message(text: str):
         sys.exit(1)
 
 
+def is_header_line(line: str) -> bool:
+    """Verifica se la riga fa parte dell'intestazione da ignorare."""
+    line_lower = line.lower().strip()
+    return any(kw in line_lower for kw in HEADER_EXCLUDE_KEYWORDS)
+
+
+def is_day_line(line: str) -> bool:
+    """Verifica se la riga inizia con un giorno della settimana."""
+    line_lower = line.lower().strip()
+    return any(line_lower.startswith(giorno) for giorno in GIORNI_KEYWORDS)
+
+
 def main():
     if not os.path.exists("menu.json"):
         print("⚠️ File menu.json non trovato.")
@@ -66,45 +91,36 @@ def main():
     with open("menu.json", "r", encoding="utf-8") as f:
         menu_data = json.load(f)
 
-    giorni_dict = menu_data.get("giorni", {})
+    # Estrae il testo grezzo estratto dal PDF
+    lines = []
+    if "testo_integrale" in menu_data:
+        lines = [
+            l.strip()
+            for l in menu_data["testo_integrale"].split("\n")
+            if l.strip()
+        ]
+    else:
+        for g, items in menu_data.get("giorni", {}).items():
+            if g != "generale":
+                lines.append(g)
+            lines.extend(items)
 
-    if not giorni_dict:
-        print("⚠️ Nessun dato trovato in menu.json.")
-        return
+    output_lines = ["🍽️️ *MENU MENSE SCOLASTICHE*\n"]
 
-    # Intestazione del messaggio
-    titolo = menu_data.get("titolo_documento", "MENÙ SCOLASTICO SETTIMANALE")
-    messaggio_blocks = [f"📋 *{titolo.upper()}*\n"]
-
-    # Ordiniamo i giorni secondo la settimana lavorativa
-    chiavi_giorni = list(giorni_dict.keys())
-
-    def sort_key(day_name):
-        day_lower = day_name.lower()
-        if day_lower in GIORNI_ORDINE:
-            return GIORNI_ORDINE.index(day_lower)
-        return 99
-
-    chiavi_ordinate = sorted(chiavi_giorni, key=sort_key)
-
-    giorni_trovati = False
-    for giorno in chiavi_ordinate:
-        piatti = giorni_dict[giorno]
-        if not piatti or giorno == "generale":
+    for line in lines:
+        # 1. Ignora le intestazioni indesiderate
+        if is_header_line(line):
             continue
 
-        giorni_trovati = True
-        piatti_formatted = "\n".join([f"• {p}" for p in piatti])
-        messaggio_blocks.append(
-            f"📌 *{giorno.upper()}*\n{piatti_formatted}\n"
-        )
+        # 2. Se è una riga con il giorno (es. "Lunedì 5 Ottobre")
+        if is_day_line(line):
+            day_title = line.strip().capitalize()
+            output_lines.append(f"\n📌 *{day_title}*")
+        else:
+            # 3. Aggiunge i piatti/spuntini senza elenchi puntati
+            output_lines.append(line.strip())
 
-    # Fallback se non ci sono giorni formattati distinti
-    if not giorni_trovati and "generale" in giorni_dict:
-        piatti_formatted = "\n".join([f"• {p}" for p in giorni_dict["generale"]])
-        messaggio_blocks.append(piatti_formatted)
-
-    messaggio_finale = "\n".join(messaggio_blocks)
+    messaggio_finale = "\n".join(output_lines).strip()
 
     send_message(messaggio_finale)
 
